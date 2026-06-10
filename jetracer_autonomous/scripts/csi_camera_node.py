@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import cv2
 import rospy
-from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 
 
@@ -27,7 +26,6 @@ def main():
         rospy.logfatal("Failed to open CSI camera pipeline")
         return
 
-    bridge = CvBridge()
     publisher = rospy.Publisher(topic, Image, queue_size=1)
     rate = rospy.Rate(fps)
 
@@ -40,9 +38,15 @@ def main():
             rate.sleep()
             continue
 
-        msg = bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+        msg = Image()
         msg.header.stamp = rospy.Time.now()
         msg.header.frame_id = "camera"
+        msg.height = int(frame.shape[0])
+        msg.width = int(frame.shape[1])
+        msg.encoding = "bgr8"
+        msg.is_bigendian = False
+        msg.step = int(frame.shape[1] * 3)
+        msg.data = frame.tobytes()
         publisher.publish(msg)
         rate.sleep()
 

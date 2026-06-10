@@ -2,6 +2,8 @@ import os
 import threading
 import time
 
+import numpy as np
+
 try:
     import cv2
 except ImportError:  # pragma: no cover
@@ -9,11 +11,9 @@ except ImportError:  # pragma: no cover
 
 try:
     import rospy
-    from cv_bridge import CvBridge
     from sensor_msgs.msg import Image
 except ImportError:  # pragma: no cover
     rospy = None
-    CvBridge = None
     Image = None
 
 from jetracer_autonomous.config import Config, default_config_path
@@ -36,7 +36,6 @@ class AutonomousDriveNode:
         self.frame_counter = 0
         self.encoding_logged = False
 
-        self.bridge = CvBridge()
         self.line_detector = LineDetector(self.config)
         self.perception_filter = PerceptionFilter(self.config)
         self.decision_manager = DecisionManager(self.config)
@@ -134,9 +133,9 @@ class AutonomousDriveNode:
             self.encoding_logged = True
 
         try:
-            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            frame = self._image_msg_to_bgr(msg)
         except Exception as exc:
-            rospy.logerr("cv_bridge conversion failed: {}".format(exc))
+            rospy.logerr("image conversion failed: {}".format(exc))
             return
 
         with self.frame_lock:
@@ -156,9 +155,56 @@ class AutonomousDriveNode:
         if self.overlay_pub is None or overlay is None:
             return
         try:
-            self.overlay_pub.publish(self.bridge.cv2_to_imgmsg(overlay, encoding="bgr8"))
+            self.overlay_pub.publish(self._bgr_to_image_msg(overlay))
         except Exception as exc:
             rospy.logwarn("debug overlay publish failed: {}".format(exc))
+
+    def _image_msg_to_bgr(self, msg):
+        if cv2 is None:
+            raise RuntimeError("cv2 is required for image conversion")
+
+        encoding = getattr(msg, "encoding", "bgr8")
+        height = int(msg.height)
+        width = int(msg.width)
+        step = int(msg.step)
+        data = np.frombuffer(msg.data, dtype=np.uint8)
+
+        if encoding in ("bgr8", "rgb8"):
+            channels = 3
+        elif encoding in ("bgra8", "rgba8"):
+            channels = 4
+        elif encoding == "mono8":
+            channels = 1
+        else:
+            raise ValueError("unsupported image encoding: {}".format(encoding))
+
+        row_width = width * channels
+        rows = data.reshape((height, step))[:, :row_width]
+
+        if channels == 1:
+            frame = rows.reshape((height, width))
+            return cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+
+        frame = rows.reshape((height, width, channels))
+        if encoding == "rgb8":
+            return cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        if encoding == "rgba8":
+            return cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+        if encoding == "bgra8":
+            return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+        return frame.copy()
+
+    def _bgr_to_image_msg(self, frame):
+        msg = Image()
+        msg.header.stamp = rospy.Time.now()
+        msg.header.frame_id = "debug_overlay"
+        msg.height = int(frame.shape[0])
+        msg.width = int(frame.shape[1])
+        msg.encoding = "bgr8"
+        msg.is_bigendian = False
+        msg.step = int(frame.shape[1] * 3)
+        msg.data = frame.tobytes()
+        return msg
 
 
 def main():

@@ -5,7 +5,6 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   sensor_msgs
   geometry_msgs
-  cv_bridge
 )
 
 catkin_python_setup()
