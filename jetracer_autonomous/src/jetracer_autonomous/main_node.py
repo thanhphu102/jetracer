@@ -50,6 +50,10 @@ class AutonomousDriveNode:
             model_path=model_path,
             conf_threshold=float(self.config.get("model.conf_threshold", 0.6)),
             logger=rospy.loginfo,
+            backend=self.config.get("model.backend", "local"),
+            http_url=self.config.get("model.http_url", "http://127.0.0.1:8765/detect"),
+            http_timeout_sec=float(self.config.get("model.http_timeout_sec", 1.0)),
+            jpeg_quality=int(self.config.get("model.jpeg_quality", 80)),
         )
 
         self.overlay_pub = None

@@ -1,4 +1,12 @@
 from dataclasses import dataclass
+import json
+import urllib.error
+import urllib.request
+
+try:
+    import cv2
+except ImportError:  # pragma: no cover
+    cv2 = None
 
 
 LANE_CLASSES = ["straight", "curve_left", "curve_right", "avoid_left", "avoid_right"]
@@ -16,13 +24,29 @@ class Detection:
 class YOLODetector:
     """Thin YOLO wrapper. It reports detections and never makes driving decisions."""
 
-    def __init__(self, model_path, conf_threshold=0.6, logger=None):
+    def __init__(
+        self,
+        model_path,
+        conf_threshold=0.6,
+        logger=None,
+        backend="local",
+        http_url="http://127.0.0.1:8765/detect",
+        http_timeout_sec=1.0,
+        jpeg_quality=80,
+    ):
         self.model_path = model_path
         self.conf_threshold = conf_threshold
         self.logger = logger
+        self.backend = backend
+        self.http_url = http_url
+        self.http_timeout_sec = http_timeout_sec
+        self.jpeg_quality = int(jpeg_quality)
         self.model = None
         self.names = {}
-        self._load_model()
+        if self.backend == "http":
+            self._log("Using YOLO HTTP backend: {}".format(self.http_url))
+        else:
+            self._load_model()
 
     def _load_model(self):
         try:
@@ -40,6 +64,9 @@ class YOLODetector:
             self._log("Failed to load YOLO model {}: {}".format(self.model_path, exc))
 
     def detect(self, frame):
+        if self.backend == "http":
+            return self._detect_http(frame)
+
         if self.model is None or frame is None:
             return []
 
@@ -68,6 +95,56 @@ class YOLODetector:
                 xyxy = tuple(float(v) for v in box.xyxy[0].tolist())
                 detections.append(Detection(label=label, confidence=confidence, bbox=xyxy))
 
+        return detections
+
+    def _detect_http(self, frame):
+        if cv2 is None or frame is None:
+            return []
+
+        ok, encoded = cv2.imencode(
+            ".jpg",
+            frame,
+            [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality],
+        )
+        if not ok:
+            self._log("Failed to encode frame for YOLO HTTP backend")
+            return []
+
+        request = urllib.request.Request(
+            self.http_url,
+            data=encoded.tobytes(),
+            headers={
+                "Content-Type": "image/jpeg",
+                "X-Confidence": str(self.conf_threshold),
+            },
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(request, timeout=self.http_timeout_sec) as response:
+                payload = response.read().decode("utf-8")
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            self._log("YOLO HTTP request failed: {}".format(exc))
+            return []
+
+        try:
+            data = json.loads(payload)
+        except ValueError as exc:
+            self._log("YOLO HTTP response was not JSON: {}".format(exc))
+            return []
+
+        detections = []
+        for item in data.get("detections", []):
+            try:
+                detections.append(
+                    Detection(
+                        label=str(item["label"]),
+                        confidence=float(item["confidence"]),
+                        bbox=tuple(float(v) for v in item["bbox"]),
+                    )
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
         return detections
 
     def _log(self, message):

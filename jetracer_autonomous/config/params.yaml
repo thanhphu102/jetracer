@@ -5,9 +5,13 @@ ros:
   use_twist_cmd: true
 
 model:
+  backend: "local"   # local or http
   path: "models/best.pt"
   conf_threshold: 0.60
   inference_every_n_frames: 3
+  http_url: "http://127.0.0.1:8765/detect"
+  http_timeout_sec: 1.0
+  jpeg_quality: 80
 
 sign:
   pending_timeout_sec: 5.0

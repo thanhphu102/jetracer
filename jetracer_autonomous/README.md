@@ -16,6 +16,46 @@ roslaunch jetracer_autonomous autonomous_drive.launch
 
 The launch file passes an absolute config path using `$(find jetracer_autonomous)`.
 
+## ROS Host + YOLO Docker
+
+If ROS runs on the JetRacer host and YOLO runs in a Docker container, set:
+
+```yaml
+model:
+  backend: "http"
+  http_url: "http://127.0.0.1:8765/detect"
+```
+
+Start the YOLO container with host networking and mount this repo:
+
+```bash
+docker run -it --rm \
+  --network host \
+  --runtime nvidia \
+  -v ~/catkin_ws/src/jetracer:/workspace/jetracer \
+  your_ultralytics_image:latest \
+  bash
+```
+
+Inside the container:
+
+```bash
+cd /workspace/jetracer
+python3 jetracer_autonomous/tools/yolo_http_service.py \
+  --model /workspace/jetracer/jetracer_autonomous/models/best.pt \
+  --host 0.0.0.0 \
+  --port 8765 \
+  --conf 0.6
+```
+
+On the host, check the service:
+
+```bash
+curl http://127.0.0.1:8765/health
+```
+
+Then launch the ROS node on the host as usual.
+
 ## Safe First-Run Checklist
 
 ### Step 1 - Dry Run
