@@ -1,0 +1,11 @@
+<launch>
+    <arg name="config_path"
+         default="$(find jetracer_autonomous)/config/params.yaml" />
+
+    <node pkg="jetracer_autonomous"
+          type="autonomous_drive_node.py"
+          name="jetracer_autonomous_drive"
+          output="screen">
+        <param name="config_path" value="$(arg config_path)" />
+    </node>
+</launch>

@@ -1,0 +1,4 @@
+numpy>=1.19
+opencv-python>=4.5
+PyYAML>=5.3
+ultralytics>=8.0

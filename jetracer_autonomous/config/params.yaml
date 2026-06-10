@@ -1,0 +1,72 @@
+ros:
+  camera_topic: "/camera/image_raw"
+  command_topic: "/cmd_vel"
+  loop_rate_hz: 15
+  use_twist_cmd: true
+
+model:
+  path: "models/best.pt"
+  conf_threshold: 0.60
+  inference_every_n_frames: 3
+
+sign:
+  pending_timeout_sec: 5.0
+
+line:
+  threshold_mode: "white_on_dark"
+  kp: 0.004
+  max_steering: 0.60
+  lost_timeout_sec: 0.50
+  threshold_value: 160
+  min_pixels: 30
+
+  roi_y_start_fraction: 0.55
+  roi_y_end_fraction: 0.85
+  debug_show_roi: true
+
+intersection:
+  side_score_threshold: 0.08
+  center_score_threshold: 0.08
+  cross_stable_frames: 3
+
+throttle:
+  normal: 0.16
+  slow: 0.10
+  turn: 0.09
+  stop: 0.0
+
+steering:
+  straight: 0.0
+  avoid_left: 0.45
+  avoid_right: -0.45
+  turn_left: 0.70
+  turn_right: -0.70
+
+control:
+  steering_smoothing_alpha: 0.65
+  max_steering_delta_per_step: 0.10
+
+perception:
+  sign_stable_frames: 4
+  light_stable_frames: 3
+  avoid_stable_frames: 2
+
+turn:
+  approach_time_sec: 0.25
+  min_turn_time_sec: 0.50
+  max_turn_time_sec: 2.50
+  recover_time_sec: 0.60
+  go_straight_time_sec: 0.60
+  cooldown_sec: 1.50
+
+avoid:
+  duration_sec: 0.50
+
+debug:
+  dry_run: true
+  show_log: true
+  publish_overlay: true
+
+  save_overlay_frames: false
+  overlay_save_interval: 30
+  overlay_save_path: "/tmp/jetracer_debug/"

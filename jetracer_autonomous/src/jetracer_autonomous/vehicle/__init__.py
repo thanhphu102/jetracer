@@ -1,0 +1,1 @@
+"""ROS command publishing boundary."""
