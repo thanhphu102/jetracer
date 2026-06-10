@@ -56,6 +56,20 @@ curl http://127.0.0.1:8765/health
 
 Then launch the ROS node on the host as usual.
 
+To run the host ROS camera, YOLO Docker service, and autonomous node from one shell:
+
+```bash
+~/catkin_ws/src/jetracer/jetracer_autonomous/tools/run_host_ros_yolo_docker.sh
+```
+
+Useful overrides:
+
+```bash
+YOLO_PORT=8765 YOLO_CONF=0.6 \
+REPO_PATH=~/catkin_ws/src/jetracer \
+~/catkin_ws/src/jetracer/jetracer_autonomous/tools/run_host_ros_yolo_docker.sh
+```
+
 ## Safe First-Run Checklist
 
 ### Step 1 - Dry Run

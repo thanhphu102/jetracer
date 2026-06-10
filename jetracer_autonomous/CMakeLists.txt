@@ -14,6 +14,7 @@ catkin_package()
 
 catkin_install_python(PROGRAMS
   scripts/autonomous_drive_node.py
+  scripts/csi_camera_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
