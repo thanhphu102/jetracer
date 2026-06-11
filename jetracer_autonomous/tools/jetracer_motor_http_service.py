@@ -39,6 +39,13 @@ class MotorService:
         self.car.steering = steering_value
         self.car.throttle = throttle_value
         self.last = {"steering": steering_value, "throttle": throttle_value}
+        print(
+            "drive steering={:.3f} throttle={:.3f}".format(
+                steering_value,
+                throttle_value,
+            ),
+            flush=True,
+        )
         return self.last
 
     def stop(self):
