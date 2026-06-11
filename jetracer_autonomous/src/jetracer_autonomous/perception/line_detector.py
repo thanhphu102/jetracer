@@ -20,6 +20,7 @@ class LineInfo:
     left_score: float = 0.0
     center_score: float = 0.0
     right_score: float = 0.0
+    horizontal_score: float = 0.0
     raw_cross: bool = False
     cross: bool = False
     cross_stable_count: int = 0
@@ -53,21 +54,36 @@ class LineDetector:
         found, line_center, line_error = self._find_line_center(roi, image_center)
         mask_score = float(np.count_nonzero(roi)) / float(roi.size) if roi.size else 0.0
 
-        left_score, center_score, right_score, split_boxes = self._score_intersection_regions(
+        (
+            left_score,
+            center_score,
+            right_score,
+            horizontal_score,
+            split_boxes,
+        ) = self._score_intersection_regions(
             mask,
             height,
             width,
         )
         side_threshold = float(self.config.get("intersection.side_score_threshold", 0.08))
         center_threshold = float(self.config.get("intersection.center_score_threshold", 0.08))
+        horizontal_threshold = float(
+            self.config.get("intersection.horizontal_score_threshold", 0.30)
+        )
         max_cross_error = float(self.config.get("intersection.max_line_error_for_cross", 99999))
         line_centered = found and line_error is not None and abs(line_error) <= max_cross_error
-        raw_cross = (
-            line_centered
-            and
+        split_cross = (
             left_score > side_threshold
             and center_score > center_threshold
             and right_score > side_threshold
+        )
+        horizontal_cross = (
+            horizontal_score > horizontal_threshold
+            and center_score > center_threshold
+        )
+        raw_cross = (
+            line_centered
+            and (split_cross or horizontal_cross)
         )
 
         if raw_cross:
@@ -92,6 +108,7 @@ class LineDetector:
             left_score=left_score,
             center_score=center_score,
             right_score=right_score,
+            horizontal_score=horizontal_score,
             raw_cross=raw_cross,
             cross=cross,
             cross_stable_count=self.cross_stable_count,
@@ -259,12 +276,23 @@ class LineDetector:
             (x_right_start, y_start, x_right_end, y_end),
         ]
 
+        band = mask[y_start:y_end, x_margin : image_width - x_margin]
+        if band.size:
+            band_row_scores = np.count_nonzero(band, axis=1) / float(band.shape[1])
+            horizontal_score = float(np.max(band_row_scores))
+        else:
+            horizontal_score = 0.0
+
         scores = []
+        use_peak_row_score = bool(self.config.get("intersection.use_peak_row_score", True))
         for x1, y1, x2, y2 in boxes:
             region = mask[y1:y2, x1:x2]
             if region.size == 0:
                 scores.append(0.0)
+            elif use_peak_row_score:
+                row_scores = np.count_nonzero(region, axis=1) / float(region.shape[1])
+                scores.append(float(np.max(row_scores)))
             else:
                 scores.append(float(np.count_nonzero(region)) / float(region.size))
 
-        return scores[0], scores[1], scores[2], boxes
+        return scores[0], scores[1], scores[2], horizontal_score, boxes

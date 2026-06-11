@@ -77,12 +77,17 @@ class DebugOverlay:
             "pending={} yolo={} reason={}".format(
                 state_info.pending_action, yolo_ran, command.reason or state_info.reason
             ),
-            "err={} cross={} L/C/R={:.2f}/{:.2f}/{:.2f}".format(
+            "err={} cross={} L/C/R/H={:.2f}/{:.2f}/{:.2f}/{:.2f}".format(
                 self._fmt(getattr(line_info, "line_error", None)),
                 getattr(line_info, "cross", False),
                 getattr(line_info, "left_score", 0.0),
                 getattr(line_info, "center_score", 0.0),
                 getattr(line_info, "right_score", 0.0),
+                getattr(line_info, "horizontal_score", 0.0),
+            ),
+            "raw_cross={} count={}".format(
+                getattr(line_info, "raw_cross", False),
+                getattr(line_info, "cross_stable_count", 0),
             ),
             "found={} mask={:.3f}".format(
                 getattr(line_info, "found", False),
