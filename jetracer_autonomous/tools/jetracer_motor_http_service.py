@@ -1,14 +1,31 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
+import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from jetracer.nvidia_racecar import NvidiaRacecar
+
+def load_nvidia_racecar():
+    # The ROS workspace repository is also named "jetracer", which can shadow
+    # the Python hardware package. Remove repo paths before importing hardware.
+    script_path = os.path.abspath(__file__)
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(script_path), "..", ".."))
+    catkin_src = os.path.dirname(repo_root)
+    sys.path[:] = [
+        path
+        for path in sys.path
+        if os.path.abspath(path or os.getcwd()) not in (repo_root, catkin_src)
+    ]
+
+    from jetracer.nvidia_racecar import NvidiaRacecar
+
+    return NvidiaRacecar
 
 
 class MotorService:
     def __init__(self, steering_gain=1.0, steering_offset=0.0, throttle_gain=1.0, throttle_offset=0.0):
-        self.car = NvidiaRacecar()
+        self.car = load_nvidia_racecar()()
         self.steering_gain = float(steering_gain)
         self.steering_offset = float(steering_offset)
         self.throttle_gain = float(throttle_gain)

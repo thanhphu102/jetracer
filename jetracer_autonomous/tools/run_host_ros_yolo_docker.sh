@@ -8,6 +8,7 @@ YOLO_IMAGE="${YOLO_IMAGE:-ultralytics/ultralytics:latest-jetson-jetpack4}"
 YOLO_CONTAINER="${YOLO_CONTAINER:-jetracer_yolo_http}"
 YOLO_PORT="${YOLO_PORT:-8765}"
 MOTOR_PORT="${MOTOR_PORT:-8766}"
+MOTOR_PYTHON="${MOTOR_PYTHON:-python3}"
 YOLO_CONF="${YOLO_CONF:-0.6}"
 YOLO_DEVICE="${YOLO_DEVICE:-0}"
 YOLO_IMGSZ="${YOLO_IMGSZ:-416}"
@@ -303,7 +304,7 @@ echo "[run_stack] YOLO HTTP service is ready"
 
 if [[ "${START_MOTOR_HTTP}" == "1" || "${START_MOTOR_HTTP}" == "true" ]]; then
   echo "[run_stack] starting JetRacer motor HTTP service on port ${MOTOR_PORT}"
-  python3 "${REPO_PATH}/jetracer_autonomous/tools/jetracer_motor_http_service.py" \
+  "${MOTOR_PYTHON}" "${REPO_PATH}/jetracer_autonomous/tools/jetracer_motor_http_service.py" \
     --host 127.0.0.1 \
     --port "${MOTOR_PORT}" \
     >/tmp/jetracer_motor_http.log 2>&1 &
