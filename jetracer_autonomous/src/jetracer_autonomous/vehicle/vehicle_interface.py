@@ -9,8 +9,16 @@ try:
     import json
     import urllib2
 except ImportError:  # pragma: no cover
-    json = None
-    urllib2 = None
+    try:
+        import json
+        import urllib.request as urllib_request
+    except ImportError:
+        json = None
+        urllib_request = None
+    else:
+        urllib2 = None
+else:
+    urllib_request = None
 
 
 class VehicleInterface:
@@ -88,7 +96,7 @@ class VehicleInterface:
         self.car.throttle = throttle_value
 
     def _publish_http(self, steering, throttle):
-        if not self._http_enabled() or json is None or urllib2 is None:
+        if not self._http_enabled() or json is None:
             return
 
         payload = json.dumps(
@@ -105,13 +113,21 @@ class VehicleInterface:
                 ),
             }
         )
-        request = urllib2.Request(
-            self.http_url,
-            data=payload,
-            headers={"Content-Type": "application/json"},
-        )
         try:
-            urllib2.urlopen(request, timeout=self.http_timeout_sec).read()
+            if urllib2 is not None:
+                request = urllib2.Request(
+                    self.http_url,
+                    data=payload,
+                    headers={"Content-Type": "application/json"},
+                )
+                urllib2.urlopen(request, timeout=self.http_timeout_sec).read()
+            else:
+                request = urllib_request.Request(
+                    self.http_url,
+                    data=payload.encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                )
+                urllib_request.urlopen(request, timeout=self.http_timeout_sec).read()
         except Exception as exc:
             self._log("JetRacer motor HTTP request failed: {}".format(exc))
 
