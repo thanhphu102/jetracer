@@ -17,6 +17,9 @@ CAMERA_FPS="${CAMERA_FPS:-15}"
 CAMERA_CAPTURE_WIDTH="${CAMERA_CAPTURE_WIDTH:-1280}"
 CAMERA_CAPTURE_HEIGHT="${CAMERA_CAPTURE_HEIGHT:-720}"
 CAMERA_CAPTURE_FPS="${CAMERA_CAPTURE_FPS:-30}"
+START_JETRACER_DRIVER="${START_JETRACER_DRIVER:-1}"
+JETRACER_DRIVER_PACKAGE="${JETRACER_DRIVER_PACKAGE:-jetracer_ros}"
+JETRACER_DRIVER_EXECUTABLE="${JETRACER_DRIVER_EXECUTABLE:-jetracer}"
 MODEL_PATH="${MODEL_PATH:-$REPO_PATH/jetracer_autonomous/models/best.pt}"
 CONFIG_PATH="${CONFIG_PATH:-$REPO_PATH/jetracer_autonomous/config/params.yaml}"
 DOCKER_BIN="${DOCKER_BIN:-sudo docker}"
@@ -30,6 +33,7 @@ KILL_ALL_YOLO_IMAGE_CONTAINERS="${KILL_ALL_YOLO_IMAGE_CONTAINERS:-1}"
 
 ROSCORE_PID=""
 CAMERA_PID=""
+JETRACER_DRIVER_PID=""
 STARTED_ROSCORE=0
 
 cleanup() {
@@ -37,6 +41,9 @@ cleanup() {
   echo "[run_stack] stopping..."
   if [[ -n "${CAMERA_PID}" ]] && kill -0 "${CAMERA_PID}" 2>/dev/null; then
     kill "${CAMERA_PID}" 2>/dev/null || true
+  fi
+  if [[ -n "${JETRACER_DRIVER_PID}" ]] && kill -0 "${JETRACER_DRIVER_PID}" 2>/dev/null; then
+    kill "${JETRACER_DRIVER_PID}" 2>/dev/null || true
   fi
   ${DOCKER_BIN} rm -f "${YOLO_CONTAINER}" >/dev/null 2>&1 || true
   if [[ "${STARTED_ROSCORE}" == "1" && -n "${ROSCORE_PID}" ]] && kill -0 "${ROSCORE_PID}" 2>/dev/null; then
@@ -100,6 +107,27 @@ wait_for_camera() {
   exit 1
 }
 
+wait_for_cmd_vel_subscriber() {
+  local topic
+  topic="$1"
+  for _ in $(seq 1 20); do
+    if rostopic info "${topic}" 2>/dev/null | grep -q "Subscribers:"; then
+      if rostopic info "${topic}" 2>/dev/null | awk '
+        /^Subscribers:/ { in_subs=1; next }
+        /^$/ { next }
+        in_subs && /^ \*/ { found=1 }
+        END { exit found ? 0 : 1 }
+      '; then
+        return 0
+      fi
+    fi
+    sleep 0.5
+  done
+
+  echo "[run_stack] warning: no subscriber found on ${topic}. Motor driver may not be running." >&2
+  rostopic info "${topic}" >&2 || true
+}
+
 kill_ros_node_if_present() {
   local node="$1"
   if rosnode list 2>/dev/null | grep -qx "${node}"; then
@@ -142,6 +170,8 @@ stop_hardware_processes() {
 
   if rostopic list >/dev/null 2>&1; then
     kill_ros_node_if_present "/jetracer_autonomous_drive"
+    kill_ros_node_if_present "/jetracer"
+    kill_ros_node_if_present "/jetracer_node"
     kill_ros_node_if_present "/csi_camera_node"
     kill_ros_node_if_present "/gscam"
     kill_ros_node_if_present "/usb_cam"
@@ -153,6 +183,8 @@ stop_hardware_processes() {
   if [[ "${KILL_PROCESS_PATTERNS}" == "1" || "${KILL_PROCESS_PATTERNS}" == "true" ]]; then
     kill_process_pattern "csi_camera_node.py"
     kill_process_pattern "autonomous_drive_node.py"
+    kill_process_pattern "rosrun ${JETRACER_DRIVER_PACKAGE} ${JETRACER_DRIVER_EXECUTABLE}"
+    kill_process_pattern "/${JETRACER_DRIVER_PACKAGE}/${JETRACER_DRIVER_EXECUTABLE}"
     kill_process_pattern "yolo_http_service.py"
     kill_process_pattern "rosrun gscam"
     kill_process_pattern "/gscam/gscam"
@@ -246,6 +278,24 @@ ${DOCKER_BIN} run -d --rm \
 
 wait_for_http
 echo "[run_stack] YOLO HTTP service is ready"
+
+if [[ "${START_JETRACER_DRIVER}" == "1" || "${START_JETRACER_DRIVER}" == "true" ]]; then
+  if rospack find "${JETRACER_DRIVER_PACKAGE}" >/dev/null 2>&1; then
+    echo "[run_stack] starting JetRacer driver: ${JETRACER_DRIVER_PACKAGE}/${JETRACER_DRIVER_EXECUTABLE}"
+    rosrun "${JETRACER_DRIVER_PACKAGE}" "${JETRACER_DRIVER_EXECUTABLE}" \
+      >/tmp/jetracer_driver.log 2>&1 &
+    JETRACER_DRIVER_PID="$!"
+    sleep 2
+    if ! kill -0 "${JETRACER_DRIVER_PID}" 2>/dev/null; then
+      echo "[run_stack] JetRacer driver exited. Last log lines:" >&2
+      tail -60 /tmp/jetracer_driver.log >&2 || true
+      exit 1
+    fi
+    wait_for_cmd_vel_subscriber "/cmd_vel"
+  else
+    echo "[run_stack] warning: package ${JETRACER_DRIVER_PACKAGE} not found; not starting motor driver" >&2
+  fi
+fi
 
 echo "[run_stack] launching autonomous node"
 roslaunch jetracer_autonomous autonomous_drive.launch config_path:="${CONFIG_PATH}"

@@ -70,6 +70,7 @@ class AutonomousDriveNode:
         rospy.loginfo("Autonomous node started")
         rospy.loginfo("camera_topic={}".format(camera_topic))
         rospy.loginfo("command_topic={}".format(self.config.get("ros.command_topic", "/cmd_vel")))
+        rospy.loginfo(self.vehicle.status())
         rospy.loginfo("model_path={}".format(model_path))
         rospy.loginfo(
             "throttle.normal={} steering.turn_left={} steering.turn_right={}".format(

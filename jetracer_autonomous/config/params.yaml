@@ -4,6 +4,13 @@ ros:
   loop_rate_hz: 15
   use_twist_cmd: true
 
+vehicle:
+  backend: "both"  # twist, direct_jetracer, both
+  steering_gain: 1.0
+  steering_offset: 0.0
+  throttle_gain: 1.0
+  throttle_offset: 0.0
+
 model:
   backend: "http"   # local or http
   path: "models/best.pt"
