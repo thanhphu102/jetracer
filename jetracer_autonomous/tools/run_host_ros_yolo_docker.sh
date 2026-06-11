@@ -9,7 +9,7 @@ YOLO_CONTAINER="${YOLO_CONTAINER:-jetracer_yolo_http}"
 YOLO_PORT="${YOLO_PORT:-8765}"
 YOLO_CONF="${YOLO_CONF:-0.6}"
 YOLO_DEVICE="${YOLO_DEVICE:-0}"
-YOLO_IMGSZ="${YOLO_IMGSZ:-640}"
+YOLO_IMGSZ="${YOLO_IMGSZ:-416}"
 YOLO_HALF="${YOLO_HALF:-0}"
 CAMERA_WIDTH="${CAMERA_WIDTH:-640}"
 CAMERA_HEIGHT="${CAMERA_HEIGHT:-480}"
@@ -25,6 +25,8 @@ STOP_HARDWARE_PROCESSES="${STOP_HARDWARE_PROCESSES:-1}"
 KILL_VIDEO_DEVICE_USERS="${KILL_VIDEO_DEVICE_USERS:-1}"
 RESTART_NVARGUS="${RESTART_NVARGUS:-1}"
 CAMERA_DEVICE="${CAMERA_DEVICE:-/dev/video0}"
+KILL_PROCESS_PATTERNS="${KILL_PROCESS_PATTERNS:-1}"
+KILL_ALL_YOLO_IMAGE_CONTAINERS="${KILL_ALL_YOLO_IMAGE_CONTAINERS:-1}"
 
 ROSCORE_PID=""
 CAMERA_PID=""
@@ -107,13 +109,36 @@ kill_ros_node_if_present() {
   fi
 }
 
+kill_process_pattern() {
+  local pattern="$1"
+  if pgrep -f "${pattern}" >/dev/null 2>&1; then
+    echo "[run_stack] killing process pattern: ${pattern}"
+    pkill -TERM -f "${pattern}" >/dev/null 2>&1 || true
+    sleep 0.5
+    pkill -KILL -f "${pattern}" >/dev/null 2>&1 || true
+  fi
+}
+
+stop_yolo_containers() {
+  ${DOCKER_BIN} rm -f "${YOLO_CONTAINER}" >/dev/null 2>&1 || true
+
+  if [[ "${KILL_ALL_YOLO_IMAGE_CONTAINERS}" == "1" || "${KILL_ALL_YOLO_IMAGE_CONTAINERS}" == "true" ]]; then
+    local container_ids
+    container_ids="$(${DOCKER_BIN} ps -aq --filter "ancestor=${YOLO_IMAGE}" 2>/dev/null || true)"
+    if [[ -n "${container_ids}" ]]; then
+      echo "[run_stack] stopping old YOLO image containers"
+      ${DOCKER_BIN} rm -f ${container_ids} >/dev/null 2>&1 || true
+    fi
+  fi
+}
+
 stop_hardware_processes() {
   if [[ "${STOP_HARDWARE_PROCESSES}" != "1" && "${STOP_HARDWARE_PROCESSES}" != "true" ]]; then
     return 0
   fi
 
   echo "[run_stack] stopping old hardware/process owners"
-  ${DOCKER_BIN} rm -f "${YOLO_CONTAINER}" >/dev/null 2>&1 || true
+  stop_yolo_containers
 
   if rostopic list >/dev/null 2>&1; then
     kill_ros_node_if_present "/jetracer_autonomous_drive"
@@ -121,12 +146,28 @@ stop_hardware_processes() {
     kill_ros_node_if_present "/gscam"
     kill_ros_node_if_present "/usb_cam"
     kill_ros_node_if_present "/usb_cam_node"
+    kill_ros_node_if_present "/rplidarNode"
+    kill_ros_node_if_present "/rplidar_node"
+  fi
+
+  if [[ "${KILL_PROCESS_PATTERNS}" == "1" || "${KILL_PROCESS_PATTERNS}" == "true" ]]; then
+    kill_process_pattern "csi_camera_node.py"
+    kill_process_pattern "autonomous_drive_node.py"
+    kill_process_pattern "yolo_http_service.py"
+    kill_process_pattern "rosrun gscam"
+    kill_process_pattern "/gscam/gscam"
+    kill_process_pattern "usb_cam_node"
+    kill_process_pattern "rplidarNode"
   fi
 
   if [[ "${KILL_VIDEO_DEVICE_USERS}" == "1" || "${KILL_VIDEO_DEVICE_USERS}" == "true" ]]; then
-    if [[ -e "${CAMERA_DEVICE}" ]] && command -v fuser >/dev/null 2>&1; then
-      echo "[run_stack] releasing ${CAMERA_DEVICE}"
-      ${SUDO_BIN} fuser -k "${CAMERA_DEVICE}" >/dev/null 2>&1 || true
+    if command -v fuser >/dev/null 2>&1; then
+      for device in ${CAMERA_DEVICE} /dev/video*; do
+        if [[ -e "${device}" ]]; then
+          echo "[run_stack] releasing ${device}"
+          ${SUDO_BIN} fuser -k "${device}" >/dev/null 2>&1 || true
+        fi
+      done
       sleep 1
     fi
   fi
@@ -154,7 +195,7 @@ echo "[run_stack] config: ${CONFIG_PATH}"
 echo "[run_stack] model: ${MODEL_PATH}"
 echo "[run_stack] yolo device: ${YOLO_DEVICE}"
 echo "[run_stack] camera: ${CAMERA_WIDTH}x${CAMERA_HEIGHT}@${CAMERA_FPS} capture=${CAMERA_CAPTURE_WIDTH}x${CAMERA_CAPTURE_HEIGHT}@${CAMERA_CAPTURE_FPS}"
-echo "[run_stack] cleanup hardware: ${STOP_HARDWARE_PROCESSES} kill_device_users=${KILL_VIDEO_DEVICE_USERS} restart_nvargus=${RESTART_NVARGUS}"
+echo "[run_stack] cleanup hardware: ${STOP_HARDWARE_PROCESSES} kill_patterns=${KILL_PROCESS_PATTERNS} kill_device_users=${KILL_VIDEO_DEVICE_USERS} restart_nvargus=${RESTART_NVARGUS}"
 
 if ! rostopic list >/dev/null 2>&1; then
   echo "[run_stack] starting roscore"

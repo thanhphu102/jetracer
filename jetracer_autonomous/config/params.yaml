@@ -8,12 +8,12 @@ model:
   backend: "http"   # local or http
   path: "models/best.pt"
   conf_threshold: 0.35
-  inference_every_n_frames: 2
+  inference_every_n_frames: 3
   http_url: "http://127.0.0.1:8765/detect"
-  http_timeout_sec: 1.0
-  jpeg_quality: 80
+  http_timeout_sec: 3.0
+  jpeg_quality: 65
   device: "0"       # 0 for GPU, cpu for CPU
-  imgsz: 640
+  imgsz: 416
   half: false
 
 sign:
@@ -74,6 +74,7 @@ avoid:
 debug:
   dry_run: true
   show_log: true
+  log_raw_yolo: true
   publish_overlay: true
   publish_line_mask: true
   publish_debug_every_n_frames: 3

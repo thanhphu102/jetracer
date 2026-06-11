@@ -35,6 +35,7 @@ class AutonomousDriveNode:
         self.latest_stamp = None
         self.frame_counter = 0
         self.encoding_logged = False
+        self.log_raw_yolo = bool(self.config.get("debug.log_raw_yolo", False))
 
         self.line_detector = LineDetector(self.config)
         self.perception_filter = PerceptionFilter(self.config)
@@ -106,6 +107,8 @@ class AutonomousDriveNode:
             yolo_ran = False
             if self.frame_counter % inference_every == 0:
                 detections = self.yolo_detector.detect(frame)
+                if self.log_raw_yolo:
+                    self._log_raw_yolo(detections)
                 perception = self.perception_filter.update(detections)
                 yolo_ran = True
             else:
@@ -138,6 +141,22 @@ class AutonomousDriveNode:
 
     def shutdown(self):
         self.vehicle.stop()
+
+    def _log_raw_yolo(self, detections):
+        if not detections:
+            rospy.loginfo("raw_yolo=[]")
+            return
+
+        parts = []
+        for detection in detections:
+            parts.append(
+                "{}:{:.2f}@{}".format(
+                    detection.label,
+                    detection.confidence,
+                    tuple(int(v) for v in detection.bbox),
+                )
+            )
+        rospy.loginfo("raw_yolo=[{}]".format(", ".join(parts)))
 
     def _camera_callback(self, msg):
         if not self.encoding_logged:
