@@ -109,7 +109,7 @@ class AutonomousDriveNode:
                 detections = self.yolo_detector.detect(frame)
                 if self.log_raw_yolo:
                     self._log_raw_yolo(detections)
-                perception = self.perception_filter.update(detections)
+                perception = self.perception_filter.update(detections, frame.shape)
                 yolo_ran = True
             else:
                 perception = self.perception_filter.get_last_stable()

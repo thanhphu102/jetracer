@@ -8,6 +8,7 @@ except ImportError:  # pragma: no cover
 
 class DebugOverlay:
     def __init__(self, config):
+        self.config = config
         self.enabled = bool(config.get("debug.publish_overlay", True))
         self.save_frames = bool(config.get("debug.save_overlay_frames", False))
         self.save_interval = int(config.get("debug.overlay_save_interval", 30))
@@ -20,6 +21,7 @@ class DebugOverlay:
             return frame
 
         overlay = frame.copy()
+        self._draw_sign_roi(overlay)
         self._draw_line_debug(overlay, line_info)
         self._draw_detections(overlay, getattr(perception, "raw_detections", []))
         self._draw_text(overlay, state_info, line_info, perception, command, yolo_ran)
@@ -52,6 +54,14 @@ class DebugOverlay:
         if line_center is not None:
             x = int(line_center)
             cv2.line(overlay, (x, 0), (x, height), (0, 255, 0), 2)
+
+    def _draw_sign_roi(self, overlay):
+        height, width = overlay.shape[:2]
+        y1 = int(height * float(self.config.get("sign.roi_y_min_fraction", 0.0)))
+        y2 = int(height * float(self.config.get("sign.roi_y_max_fraction", 1.0)))
+        y1 = max(0, min(height - 1, y1))
+        y2 = max(y1 + 1, min(height, y2))
+        cv2.rectangle(overlay, (0, y1), (width, y2), (0, 180, 255), 1)
 
     def _draw_detections(self, overlay, detections):
         for detection in detections:

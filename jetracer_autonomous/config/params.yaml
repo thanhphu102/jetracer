@@ -18,6 +18,18 @@ model:
 
 sign:
   pending_timeout_sec: 12.0
+  roi_y_min_fraction: 0.00
+  roi_y_max_fraction: 0.50
+  prohibited_enabled: false
+  enabled_signs:
+    - "0_Go_straight"
+    - "1_Turn_left"
+    - "2_Turn_right"
+  class_thresholds:
+    0_Go_straight: 0.35
+    1_Turn_left: 0.35
+    2_Turn_right: 0.35
+    3_Prohibited: 0.80
 
 line:
   use_cuda: true
@@ -39,15 +51,15 @@ intersection:
   horizontal_score_threshold: 0.30
   cross_stable_frames: 3
   use_peak_row_score: true
-  band_y_start_fraction: 0.50
-  band_y_end_fraction: 0.90
+  band_y_start_fraction: 0.38
+  band_y_end_fraction: 0.78
   side_margin_fraction: 0.03
   max_line_error_for_cross: 160
 
 throttle:
-  normal: 0.06
-  slow: 0.04
-  turn: 0.04
+  normal: 0.25
+  slow: 0.25
+  turn: 0.25
   stop: 0.0
 
 steering:
@@ -62,7 +74,7 @@ control:
   max_steering_delta_per_step: 0.10
 
 perception:
-  sign_stable_frames: 1
+  sign_stable_frames: 2
   light_stable_frames: 2
   avoid_stable_frames: 2
 
