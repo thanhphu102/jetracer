@@ -16,6 +16,7 @@ def load_nvidia_racecar():
         path
         for path in sys.path
         if os.path.abspath(path or os.getcwd()) not in (repo_root, catkin_src)
+        and "python2.7/dist-packages" not in path
     ]
 
     from jetracer.nvidia_racecar import NvidiaRacecar

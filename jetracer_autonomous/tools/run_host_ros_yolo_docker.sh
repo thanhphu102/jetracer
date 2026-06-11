@@ -304,7 +304,7 @@ echo "[run_stack] YOLO HTTP service is ready"
 
 if [[ "${START_MOTOR_HTTP}" == "1" || "${START_MOTOR_HTTP}" == "true" ]]; then
   echo "[run_stack] starting JetRacer motor HTTP service on port ${MOTOR_PORT}"
-  "${MOTOR_PYTHON}" "${REPO_PATH}/jetracer_autonomous/tools/jetracer_motor_http_service.py" \
+  env PYTHONPATH= "${MOTOR_PYTHON}" "${REPO_PATH}/jetracer_autonomous/tools/jetracer_motor_http_service.py" \
     --host 127.0.0.1 \
     --port "${MOTOR_PORT}" \
     >/tmp/jetracer_motor_http.log 2>&1 &
