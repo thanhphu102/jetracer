@@ -11,6 +11,7 @@ class DebugLogger:
         message = (
             "state={state} saved_state={saved_state} internal_phase={phase} "
             "line_error={line_error} cross={cross} "
+            "found={found} mask={mask:.3f} "
             "left={left:.3f} center={center:.3f} right={right:.3f} "
             "sign={sign} light={light} avoid={avoid} pending={pending} "
             "yolo_ran={yolo_ran} steering={steering:.3f} throttle={throttle:.3f} "
@@ -21,6 +22,8 @@ class DebugLogger:
             phase=command.internal_phase,
             line_error=line_error,
             cross=getattr(line_info, "cross", False),
+            found=getattr(line_info, "found", False),
+            mask=getattr(line_info, "mask_score", 0.0),
             left=getattr(line_info, "left_score", 0.0),
             center=getattr(line_info, "center_score", 0.0),
             right=getattr(line_info, "right_score", 0.0),

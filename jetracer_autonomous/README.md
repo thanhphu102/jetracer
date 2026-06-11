@@ -65,10 +65,22 @@ To run the host ROS camera, YOLO Docker service, and autonomous node from one sh
 Useful overrides:
 
 ```bash
-YOLO_PORT=8765 YOLO_CONF=0.6 \
+YOLO_PORT=8765 YOLO_CONF=0.6 YOLO_DEVICE=0 \
 REPO_PATH=~/catkin_ws/src/jetracer \
 ~/catkin_ws/src/jetracer/jetracer_autonomous/tools/run_host_ros_yolo_docker.sh
 ```
+
+Check whether YOLO can see CUDA/GPU:
+
+```bash
+curl http://127.0.0.1:8765/health
+```
+
+Open `rqt_image_view` and inspect:
+
+- `/camera/image_raw` for the raw camera.
+- `/jetracer_autonomous_drive/debug_overlay` for ROI, line center, state, detections.
+- `/jetracer_autonomous_drive/line_mask` for the threshold mask used by line following.
 
 ## Safe First-Run Checklist
 

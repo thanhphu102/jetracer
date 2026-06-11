@@ -84,6 +84,10 @@ class DebugOverlay:
                 getattr(line_info, "center_score", 0.0),
                 getattr(line_info, "right_score", 0.0),
             ),
+            "found={} mask={:.3f}".format(
+                getattr(line_info, "found", False),
+                getattr(line_info, "mask_score", 0.0),
+            ),
             "sign={} light={} avoid={}".format(
                 getattr(perception, "sign", None),
                 getattr(perception, "light", None),

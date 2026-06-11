@@ -23,6 +23,7 @@ class LineInfo:
     raw_cross: bool = False
     cross: bool = False
     cross_stable_count: int = 0
+    mask_score: float = 0.0
     debug: dict = field(default_factory=dict)
 
 
@@ -45,6 +46,7 @@ class LineDetector:
         mask = self._create_mask(frame)
         roi = mask[y_start:y_end, :]
         found, line_center, line_error = self._find_line_center(roi, image_center)
+        mask_score = float(np.count_nonzero(roi)) / float(roi.size) if roi.size else 0.0
 
         left_score, center_score, right_score, split_boxes = self._score_regions(roi, y_start)
         side_threshold = float(self.config.get("intersection.side_score_threshold", 0.08))
@@ -80,6 +82,7 @@ class LineDetector:
             raw_cross=raw_cross,
             cross=cross,
             cross_stable_count=self.cross_stable_count,
+            mask_score=mask_score,
             debug=debug,
         )
 
@@ -96,6 +99,24 @@ class LineDetector:
             _, mask = cv2.threshold(gray, threshold_value, 255, cv2.THRESH_BINARY_INV)
         elif mode == "auto":
             _, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        elif mode == "adaptive_white_on_dark":
+            mask = cv2.adaptiveThreshold(
+                gray,
+                255,
+                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY,
+                31,
+                -5,
+            )
+        elif mode == "adaptive_black_on_light":
+            mask = cv2.adaptiveThreshold(
+                gray,
+                255,
+                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY_INV,
+                31,
+                5,
+            )
         else:
             _, mask = cv2.threshold(gray, threshold_value, 255, cv2.THRESH_BINARY)
 
@@ -110,11 +131,21 @@ class LineDetector:
         if pixel_count < min_pixels:
             return False, None, None
 
-        _, xs = np.nonzero(roi)
-        if len(xs) == 0:
+        contour_result = cv2.findContours(roi, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = contour_result[0] if len(contour_result) == 2 else contour_result[1]
+        if not contours:
             return False, None, None
 
-        line_center = float(np.mean(xs))
+        contour = max(contours, key=cv2.contourArea)
+        min_area = float(self.config.get("line.min_contour_area", 80))
+        if cv2.contourArea(contour) < min_area:
+            return False, None, None
+
+        moments = cv2.moments(contour)
+        if moments["m00"] == 0:
+            return False, None, None
+
+        line_center = float(moments["m10"] / moments["m00"])
         line_error = float(line_center - image_center)
         return True, line_center, line_error
 

@@ -8,6 +8,9 @@ YOLO_IMAGE="${YOLO_IMAGE:-ultralytics/ultralytics:latest-jetson-jetpack4}"
 YOLO_CONTAINER="${YOLO_CONTAINER:-jetracer_yolo_http}"
 YOLO_PORT="${YOLO_PORT:-8765}"
 YOLO_CONF="${YOLO_CONF:-0.6}"
+YOLO_DEVICE="${YOLO_DEVICE:-0}"
+YOLO_IMGSZ="${YOLO_IMGSZ:-640}"
+YOLO_HALF="${YOLO_HALF:-0}"
 MODEL_PATH="${MODEL_PATH:-$REPO_PATH/jetracer_autonomous/models/best.pt}"
 CONFIG_PATH="${CONFIG_PATH:-$REPO_PATH/jetracer_autonomous/config/params.yaml}"
 DOCKER_BIN="${DOCKER_BIN:-sudo docker}"
@@ -71,6 +74,7 @@ source "${CATKIN_WS}/devel/setup.bash"
 echo "[run_stack] repo: ${REPO_PATH}"
 echo "[run_stack] config: ${CONFIG_PATH}"
 echo "[run_stack] model: ${MODEL_PATH}"
+echo "[run_stack] yolo device: ${YOLO_DEVICE}"
 
 if ! rostopic list >/dev/null 2>&1; then
   echo "[run_stack] starting roscore"
@@ -94,13 +98,17 @@ fi
 
 echo "[run_stack] starting YOLO HTTP Docker container"
 ${DOCKER_BIN} rm -f "${YOLO_CONTAINER}" >/dev/null 2>&1 || true
+YOLO_HALF_FLAG=""
+if [[ "${YOLO_HALF}" == "1" || "${YOLO_HALF}" == "true" ]]; then
+  YOLO_HALF_FLAG="--half"
+fi
 ${DOCKER_BIN} run -d --rm \
   --name "${YOLO_CONTAINER}" \
   --network host \
   --runtime nvidia \
   -v "${REPO_PATH}:/workspace/jetracer" \
   "${YOLO_IMAGE}" \
-  bash -lc "cd /workspace/jetracer && python3 jetracer_autonomous/tools/yolo_http_service.py --model /workspace/jetracer/jetracer_autonomous/models/best.pt --host 0.0.0.0 --port ${YOLO_PORT} --conf ${YOLO_CONF}" >/tmp/jetracer_yolo_container_id.txt
+  bash -lc "cd /workspace/jetracer && python3 jetracer_autonomous/tools/yolo_http_service.py --model /workspace/jetracer/jetracer_autonomous/models/best.pt --host 0.0.0.0 --port ${YOLO_PORT} --conf ${YOLO_CONF} --device ${YOLO_DEVICE} --imgsz ${YOLO_IMGSZ} ${YOLO_HALF_FLAG}" >/tmp/jetracer_yolo_container_id.txt
 
 wait_for_http
 echo "[run_stack] YOLO HTTP service is ready"

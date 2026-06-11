@@ -58,6 +58,9 @@ class AutonomousDriveNode:
         self.overlay_pub = None
         if bool(self.config.get("debug.publish_overlay", True)):
             self.overlay_pub = rospy.Publisher("~debug_overlay", Image, queue_size=1)
+        self.line_mask_pub = None
+        if bool(self.config.get("debug.publish_line_mask", True)):
+            self.line_mask_pub = rospy.Publisher("~line_mask", Image, queue_size=1)
 
         camera_topic = self.config.get("ros.camera_topic", "/camera/image_raw")
         rospy.Subscriber(camera_topic, Image, self._camera_callback, queue_size=1, buff_size=2**24)
@@ -120,6 +123,7 @@ class AutonomousDriveNode:
 
             self.debug_logger.log(state_info, line_info, perception, command, yolo_ran)
             self._publish_overlay(frame, state_info, line_info, perception, command, yolo_ran)
+            self._publish_line_mask(line_info)
 
             self.frame_counter += 1
             rate.sleep()
@@ -158,6 +162,17 @@ class AutonomousDriveNode:
             self.overlay_pub.publish(self._bgr_to_image_msg(overlay))
         except Exception as exc:
             rospy.logwarn("debug overlay publish failed: {}".format(exc))
+
+    def _publish_line_mask(self, line_info):
+        if self.line_mask_pub is None:
+            return
+        mask = getattr(line_info, "debug", {}).get("mask")
+        if mask is None:
+            return
+        try:
+            self.line_mask_pub.publish(self._mono_to_image_msg(mask, "line_mask"))
+        except Exception as exc:
+            rospy.logwarn("line mask publish failed: {}".format(exc))
 
     def _image_msg_to_bgr(self, msg):
         if cv2 is None:
@@ -203,6 +218,18 @@ class AutonomousDriveNode:
         msg.encoding = "bgr8"
         msg.is_bigendian = False
         msg.step = int(frame.shape[1] * 3)
+        msg.data = frame.tobytes()
+        return msg
+
+    def _mono_to_image_msg(self, frame, frame_id):
+        msg = Image()
+        msg.header.stamp = rospy.Time.now()
+        msg.header.frame_id = frame_id
+        msg.height = int(frame.shape[0])
+        msg.width = int(frame.shape[1])
+        msg.encoding = "mono8"
+        msg.is_bigendian = False
+        msg.step = int(frame.shape[1])
         msg.data = frame.tobytes()
         return msg
 

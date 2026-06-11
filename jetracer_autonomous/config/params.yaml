@@ -5,24 +5,28 @@ ros:
   use_twist_cmd: true
 
 model:
-  backend: "local"   # local or http
+  backend: "http"   # local or http
   path: "models/best.pt"
   conf_threshold: 0.60
   inference_every_n_frames: 3
   http_url: "http://127.0.0.1:8765/detect"
   http_timeout_sec: 1.0
   jpeg_quality: 80
+  device: "0"       # 0 for GPU, cpu for CPU
+  imgsz: 640
+  half: false
 
 sign:
   pending_timeout_sec: 5.0
 
 line:
-  threshold_mode: "white_on_dark"
+  threshold_mode: "auto"
   kp: 0.004
   max_steering: 0.60
   lost_timeout_sec: 0.50
   threshold_value: 160
   min_pixels: 30
+  min_contour_area: 80
 
   roi_y_start_fraction: 0.55
   roi_y_end_fraction: 0.85
@@ -70,6 +74,7 @@ debug:
   dry_run: true
   show_log: true
   publish_overlay: true
+  publish_line_mask: true
 
   save_overlay_frames: false
   overlay_save_interval: 30
