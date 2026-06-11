@@ -5,6 +5,13 @@ except ImportError:  # pragma: no cover
     rospy = None
     Twist = None
 
+try:
+    import json
+    import urllib2
+except ImportError:  # pragma: no cover
+    json = None
+    urllib2 = None
+
 
 class VehicleInterface:
     def __init__(self, config):
@@ -14,6 +21,8 @@ class VehicleInterface:
         self.command_topic = config.get("ros.command_topic", "/cmd_vel")
         self.use_twist_cmd = bool(config.get("ros.use_twist_cmd", True))
         self.backend = str(config.get("vehicle.backend", "twist"))
+        self.http_url = config.get("vehicle.http_url", "http://127.0.0.1:8766/drive")
+        self.http_timeout_sec = float(config.get("vehicle.http_timeout_sec", 0.2))
 
         if self._twist_enabled() and rospy is not None and Twist is not None:
             self.publisher = rospy.Publisher(self.command_topic, Twist, queue_size=1)
@@ -33,10 +42,11 @@ class VehicleInterface:
         self._publish_direct(0.0, 0.0)
 
     def status(self):
-        return "vehicle.backend={} twist={} direct_jetracer={}".format(
+        return "vehicle.backend={} twist={} direct_jetracer={} http_jetracer={}".format(
             self.backend,
             self.publisher is not None,
             self.car is not None,
+            self._http_enabled(),
         )
 
     def _to_twist(self, steering, throttle):
@@ -46,10 +56,13 @@ class VehicleInterface:
         return msg
 
     def _twist_enabled(self):
-        return self.use_twist_cmd and self.backend in ("twist", "both")
+        return self.use_twist_cmd and self.backend in ("twist", "twist_http", "both")
 
     def _direct_enabled(self):
         return self.backend in ("direct_jetracer", "both")
+
+    def _http_enabled(self):
+        return self.backend in ("http_jetracer", "twist_http", "both")
 
     def _publish_twist(self, steering, throttle):
         if self.publisher is None:
@@ -58,6 +71,7 @@ class VehicleInterface:
 
     def _publish_direct(self, steering, throttle):
         if self.car is None:
+            self._publish_http(steering, throttle)
             return
 
         steering_value = self._scaled(
@@ -72,6 +86,34 @@ class VehicleInterface:
         )
         self.car.steering = steering_value
         self.car.throttle = throttle_value
+
+    def _publish_http(self, steering, throttle):
+        if not self._http_enabled() or json is None or urllib2 is None:
+            return
+
+        payload = json.dumps(
+            {
+                "steering": self._scaled(
+                    steering,
+                    "vehicle.steering_gain",
+                    "vehicle.steering_offset",
+                ),
+                "throttle": self._scaled(
+                    throttle,
+                    "vehicle.throttle_gain",
+                    "vehicle.throttle_offset",
+                ),
+            }
+        )
+        request = urllib2.Request(
+            self.http_url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            urllib2.urlopen(request, timeout=self.http_timeout_sec).read()
+        except Exception as exc:
+            self._log("JetRacer motor HTTP request failed: {}".format(exc))
 
     def _scaled(self, value, gain_key, offset_key):
         gain = float(self.config.get(gain_key, 1.0))

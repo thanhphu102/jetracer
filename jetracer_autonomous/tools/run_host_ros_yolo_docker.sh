@@ -7,6 +7,7 @@ ROS_DISTRO_NAME="${ROS_DISTRO_NAME:-melodic}"
 YOLO_IMAGE="${YOLO_IMAGE:-ultralytics/ultralytics:latest-jetson-jetpack4}"
 YOLO_CONTAINER="${YOLO_CONTAINER:-jetracer_yolo_http}"
 YOLO_PORT="${YOLO_PORT:-8765}"
+MOTOR_PORT="${MOTOR_PORT:-8766}"
 YOLO_CONF="${YOLO_CONF:-0.6}"
 YOLO_DEVICE="${YOLO_DEVICE:-0}"
 YOLO_IMGSZ="${YOLO_IMGSZ:-416}"
@@ -20,6 +21,7 @@ CAMERA_CAPTURE_FPS="${CAMERA_CAPTURE_FPS:-30}"
 START_JETRACER_DRIVER="${START_JETRACER_DRIVER:-1}"
 JETRACER_DRIVER_PACKAGE="${JETRACER_DRIVER_PACKAGE:-jetracer_ros}"
 JETRACER_DRIVER_EXECUTABLE="${JETRACER_DRIVER_EXECUTABLE:-jetracer}"
+START_MOTOR_HTTP="${START_MOTOR_HTTP:-1}"
 MODEL_PATH="${MODEL_PATH:-$REPO_PATH/jetracer_autonomous/models/best.pt}"
 CONFIG_PATH="${CONFIG_PATH:-$REPO_PATH/jetracer_autonomous/config/params.yaml}"
 DOCKER_BIN="${DOCKER_BIN:-sudo docker}"
@@ -34,6 +36,7 @@ KILL_ALL_YOLO_IMAGE_CONTAINERS="${KILL_ALL_YOLO_IMAGE_CONTAINERS:-1}"
 ROSCORE_PID=""
 CAMERA_PID=""
 JETRACER_DRIVER_PID=""
+MOTOR_HTTP_PID=""
 STARTED_ROSCORE=0
 
 cleanup() {
@@ -44,6 +47,10 @@ cleanup() {
   fi
   if [[ -n "${JETRACER_DRIVER_PID}" ]] && kill -0 "${JETRACER_DRIVER_PID}" 2>/dev/null; then
     kill "${JETRACER_DRIVER_PID}" 2>/dev/null || true
+  fi
+  if [[ -n "${MOTOR_HTTP_PID}" ]] && kill -0 "${MOTOR_HTTP_PID}" 2>/dev/null; then
+    curl -fsS "http://127.0.0.1:${MOTOR_PORT}/stop" >/dev/null 2>&1 || true
+    kill "${MOTOR_HTTP_PID}" 2>/dev/null || true
   fi
   ${DOCKER_BIN} rm -f "${YOLO_CONTAINER}" >/dev/null 2>&1 || true
   if [[ "${STARTED_ROSCORE}" == "1" && -n "${ROSCORE_PID}" ]] && kill -0 "${ROSCORE_PID}" 2>/dev/null; then
@@ -79,6 +86,19 @@ wait_for_http() {
     sleep 0.5
   done
   echo "[run_stack] YOLO HTTP service did not become ready at ${url}" >&2
+  exit 1
+}
+
+wait_for_motor_http() {
+  local url="http://127.0.0.1:${MOTOR_PORT}/health"
+  for _ in $(seq 1 20); do
+    if command -v curl >/dev/null 2>&1 && curl -fsS "${url}" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "[run_stack] motor HTTP service did not become ready at ${url}" >&2
+  tail -80 /tmp/jetracer_motor_http.log >&2 || true
   exit 1
 }
 
@@ -185,6 +205,7 @@ stop_hardware_processes() {
     kill_process_pattern "autonomous_drive_node.py"
     kill_process_pattern "rosrun ${JETRACER_DRIVER_PACKAGE} ${JETRACER_DRIVER_EXECUTABLE}"
     kill_process_pattern "/${JETRACER_DRIVER_PACKAGE}/${JETRACER_DRIVER_EXECUTABLE}"
+    kill_process_pattern "jetracer_motor_http_service.py"
     kill_process_pattern "yolo_http_service.py"
     kill_process_pattern "rosrun gscam"
     kill_process_pattern "/gscam/gscam"
@@ -216,6 +237,7 @@ stop_hardware_processes() {
 require_file "/opt/ros/${ROS_DISTRO_NAME}/setup.bash"
 require_file "${CATKIN_WS}/devel/setup.bash"
 require_file "${REPO_PATH}/jetracer_autonomous/tools/yolo_http_service.py"
+require_file "${REPO_PATH}/jetracer_autonomous/tools/jetracer_motor_http_service.py"
 require_file "${MODEL_PATH}"
 require_file "${CONFIG_PATH}"
 
@@ -278,6 +300,23 @@ ${DOCKER_BIN} run -d --rm \
 
 wait_for_http
 echo "[run_stack] YOLO HTTP service is ready"
+
+if [[ "${START_MOTOR_HTTP}" == "1" || "${START_MOTOR_HTTP}" == "true" ]]; then
+  echo "[run_stack] starting JetRacer motor HTTP service on port ${MOTOR_PORT}"
+  python3 "${REPO_PATH}/jetracer_autonomous/tools/jetracer_motor_http_service.py" \
+    --host 127.0.0.1 \
+    --port "${MOTOR_PORT}" \
+    >/tmp/jetracer_motor_http.log 2>&1 &
+  MOTOR_HTTP_PID="$!"
+  sleep 1
+  if ! kill -0 "${MOTOR_HTTP_PID}" 2>/dev/null; then
+    echo "[run_stack] motor HTTP service exited. Last log lines:" >&2
+    tail -80 /tmp/jetracer_motor_http.log >&2 || true
+    exit 1
+  fi
+  wait_for_motor_http
+  echo "[run_stack] JetRacer motor HTTP service is ready"
+fi
 
 if [[ "${START_JETRACER_DRIVER}" == "1" || "${START_JETRACER_DRIVER}" == "true" ]]; then
   if rospack find "${JETRACER_DRIVER_PACKAGE}" >/dev/null 2>&1; then
