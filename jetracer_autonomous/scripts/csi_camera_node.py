@@ -54,7 +54,7 @@ def main():
     sensor_id = int(rospy.get_param("~sensor_id", 0))
     capture_width = int(rospy.get_param("~capture_width", 1280))
     capture_height = int(rospy.get_param("~capture_height", 720))
-    capture_fps = int(rospy.get_param("~capture_fps", 60))
+    capture_fps = int(rospy.get_param("~capture_fps", 30))
     reopen_after_failures = int(rospy.get_param("~reopen_after_failures", 5))
 
     pipeline = build_pipeline(

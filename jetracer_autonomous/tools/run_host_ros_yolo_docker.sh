@@ -16,10 +16,15 @@ CAMERA_HEIGHT="${CAMERA_HEIGHT:-480}"
 CAMERA_FPS="${CAMERA_FPS:-15}"
 CAMERA_CAPTURE_WIDTH="${CAMERA_CAPTURE_WIDTH:-1280}"
 CAMERA_CAPTURE_HEIGHT="${CAMERA_CAPTURE_HEIGHT:-720}"
-CAMERA_CAPTURE_FPS="${CAMERA_CAPTURE_FPS:-60}"
+CAMERA_CAPTURE_FPS="${CAMERA_CAPTURE_FPS:-30}"
 MODEL_PATH="${MODEL_PATH:-$REPO_PATH/jetracer_autonomous/models/best.pt}"
 CONFIG_PATH="${CONFIG_PATH:-$REPO_PATH/jetracer_autonomous/config/params.yaml}"
 DOCKER_BIN="${DOCKER_BIN:-sudo docker}"
+SUDO_BIN="${SUDO_BIN:-sudo}"
+STOP_HARDWARE_PROCESSES="${STOP_HARDWARE_PROCESSES:-1}"
+KILL_VIDEO_DEVICE_USERS="${KILL_VIDEO_DEVICE_USERS:-1}"
+RESTART_NVARGUS="${RESTART_NVARGUS:-1}"
+CAMERA_DEVICE="${CAMERA_DEVICE:-/dev/video0}"
 
 ROSCORE_PID=""
 CAMERA_PID=""
@@ -68,6 +73,73 @@ wait_for_http() {
   exit 1
 }
 
+wait_for_camera() {
+  local topic="/camera/image_raw"
+  for _ in $(seq 1 30); do
+    if [[ -n "${CAMERA_PID}" ]] && ! kill -0 "${CAMERA_PID}" 2>/dev/null; then
+      echo "[run_stack] camera node exited while waiting for ${topic}. Last log lines:" >&2
+      tail -60 /tmp/jetracer_csi_camera.log >&2 || true
+      exit 1
+    fi
+
+    if rostopic list 2>/dev/null | grep -qx "${topic}"; then
+      if timeout 2 rostopic echo "${topic}/header" -n 1 >/dev/null 2>&1; then
+        return 0
+      fi
+    fi
+
+    sleep 0.5
+  done
+
+  echo "[run_stack] camera did not publish frames on ${topic}. Last log lines:" >&2
+  tail -80 /tmp/jetracer_csi_camera.log >&2 || true
+  echo "[run_stack] active publishers:" >&2
+  rostopic info "${topic}" >&2 || true
+  exit 1
+}
+
+kill_ros_node_if_present() {
+  local node="$1"
+  if rosnode list 2>/dev/null | grep -qx "${node}"; then
+    echo "[run_stack] stopping ROS node ${node}"
+    rosnode kill "${node}" >/dev/null 2>&1 || true
+    sleep 0.5
+  fi
+}
+
+stop_hardware_processes() {
+  if [[ "${STOP_HARDWARE_PROCESSES}" != "1" && "${STOP_HARDWARE_PROCESSES}" != "true" ]]; then
+    return 0
+  fi
+
+  echo "[run_stack] stopping old hardware/process owners"
+  ${DOCKER_BIN} rm -f "${YOLO_CONTAINER}" >/dev/null 2>&1 || true
+
+  if rostopic list >/dev/null 2>&1; then
+    kill_ros_node_if_present "/jetracer_autonomous_drive"
+    kill_ros_node_if_present "/csi_camera_node"
+    kill_ros_node_if_present "/gscam"
+    kill_ros_node_if_present "/usb_cam"
+    kill_ros_node_if_present "/usb_cam_node"
+  fi
+
+  if [[ "${KILL_VIDEO_DEVICE_USERS}" == "1" || "${KILL_VIDEO_DEVICE_USERS}" == "true" ]]; then
+    if [[ -e "${CAMERA_DEVICE}" ]] && command -v fuser >/dev/null 2>&1; then
+      echo "[run_stack] releasing ${CAMERA_DEVICE}"
+      ${SUDO_BIN} fuser -k "${CAMERA_DEVICE}" >/dev/null 2>&1 || true
+      sleep 1
+    fi
+  fi
+
+  if [[ "${RESTART_NVARGUS}" == "1" || "${RESTART_NVARGUS}" == "true" ]]; then
+    if command -v systemctl >/dev/null 2>&1; then
+      echo "[run_stack] restarting nvargus-daemon"
+      ${SUDO_BIN} systemctl restart nvargus-daemon >/dev/null 2>&1 || true
+      sleep 2
+    fi
+  fi
+}
+
 require_file "/opt/ros/${ROS_DISTRO_NAME}/setup.bash"
 require_file "${CATKIN_WS}/devel/setup.bash"
 require_file "${REPO_PATH}/jetracer_autonomous/tools/yolo_http_service.py"
@@ -82,6 +154,7 @@ echo "[run_stack] config: ${CONFIG_PATH}"
 echo "[run_stack] model: ${MODEL_PATH}"
 echo "[run_stack] yolo device: ${YOLO_DEVICE}"
 echo "[run_stack] camera: ${CAMERA_WIDTH}x${CAMERA_HEIGHT}@${CAMERA_FPS} capture=${CAMERA_CAPTURE_WIDTH}x${CAMERA_CAPTURE_HEIGHT}@${CAMERA_CAPTURE_FPS}"
+echo "[run_stack] cleanup hardware: ${STOP_HARDWARE_PROCESSES} kill_device_users=${KILL_VIDEO_DEVICE_USERS} restart_nvargus=${RESTART_NVARGUS}"
 
 if ! rostopic list >/dev/null 2>&1; then
   echo "[run_stack] starting roscore"
@@ -92,6 +165,8 @@ if ! rostopic list >/dev/null 2>&1; then
 else
   echo "[run_stack] roscore already running"
 fi
+
+stop_hardware_processes
 
 echo "[run_stack] starting CSI camera node"
 rosrun jetracer_autonomous csi_camera_node.py \
@@ -110,6 +185,10 @@ if ! kill -0 "${CAMERA_PID}" 2>/dev/null; then
   exit 1
 fi
 
+echo "[run_stack] waiting for camera frames"
+wait_for_camera
+echo "[run_stack] camera is publishing frames"
+
 echo "[run_stack] starting YOLO HTTP Docker container"
 ${DOCKER_BIN} rm -f "${YOLO_CONTAINER}" >/dev/null 2>&1 || true
 YOLO_HALF_FLAG=""
@@ -126,9 +205,6 @@ ${DOCKER_BIN} run -d --rm \
 
 wait_for_http
 echo "[run_stack] YOLO HTTP service is ready"
-
-echo "[run_stack] checking camera topic"
-timeout 8 bash -lc "source /opt/ros/${ROS_DISTRO_NAME}/setup.bash && source '${CATKIN_WS}/devel/setup.bash' && rostopic hz /camera/image_raw" || true
 
 echo "[run_stack] launching autonomous node"
 roslaunch jetracer_autonomous autonomous_drive.launch config_path:="${CONFIG_PATH}"
