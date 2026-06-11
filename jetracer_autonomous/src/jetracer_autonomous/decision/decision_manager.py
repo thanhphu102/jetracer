@@ -86,7 +86,10 @@ class DecisionManager:
             return self.get_state_info()
 
         if self.state == LOST_LINE:
-            self.last_reason = "lost_line_stopped"
+            if line_found:
+                self._enter(FOLLOW_LINE, "lost_line_reacquired")
+            else:
+                self.last_reason = "lost_line_stopped"
             return self.get_state_info()
 
         if self.state == AVOID:
