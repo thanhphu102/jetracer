@@ -7,7 +7,7 @@ ros:
 vehicle:
   backend: "twist_http"  # twist, direct_jetracer, http_jetracer, twist_http, both
   http_url: "http://127.0.0.1:8766/drive"
-  http_timeout_sec: 0.2
+  http_timeout_sec: 1.0
   steering_gain: 1.0
   steering_offset: 0.0
   throttle_gain: 1.0

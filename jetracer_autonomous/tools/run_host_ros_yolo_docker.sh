@@ -9,6 +9,8 @@ YOLO_CONTAINER="${YOLO_CONTAINER:-jetracer_yolo_http}"
 YOLO_PORT="${YOLO_PORT:-8765}"
 MOTOR_PORT="${MOTOR_PORT:-8766}"
 MOTOR_PYTHON="${MOTOR_PYTHON:-python3}"
+MOTOR_SELF_TEST="${MOTOR_SELF_TEST:-0}"
+MOTOR_SELF_TEST_THROTTLE="${MOTOR_SELF_TEST_THROTTLE:-0.35}"
 YOLO_CONF="${YOLO_CONF:-0.6}"
 YOLO_DEVICE="${YOLO_DEVICE:-0}"
 YOLO_IMGSZ="${YOLO_IMGSZ:-416}"
@@ -101,6 +103,20 @@ wait_for_motor_http() {
   echo "[run_stack] motor HTTP service did not become ready at ${url}" >&2
   tail -80 /tmp/jetracer_motor_http.log >&2 || true
   exit 1
+}
+
+motor_self_test() {
+  if [[ "${MOTOR_SELF_TEST}" != "1" && "${MOTOR_SELF_TEST}" != "true" ]]; then
+    return 0
+  fi
+
+  echo "[run_stack] motor self-test throttle=${MOTOR_SELF_TEST_THROTTLE}"
+  curl -fsS -X POST "http://127.0.0.1:${MOTOR_PORT}/drive" \
+    -H "Content-Type: application/json" \
+    -d "{\"steering\":0.0,\"throttle\":${MOTOR_SELF_TEST_THROTTLE}}" >/dev/null
+  sleep 0.5
+  curl -fsS "http://127.0.0.1:${MOTOR_PORT}/stop" >/dev/null
+  echo "[run_stack] motor self-test done"
 }
 
 wait_for_camera() {
@@ -317,6 +333,7 @@ if [[ "${START_MOTOR_HTTP}" == "1" || "${START_MOTOR_HTTP}" == "true" ]]; then
   fi
   wait_for_motor_http
   echo "[run_stack] JetRacer motor HTTP service is ready"
+  motor_self_test
 fi
 
 if [[ "${START_JETRACER_DRIVER}" == "1" || "${START_JETRACER_DRIVER}" == "true" ]]; then

@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
@@ -32,6 +33,8 @@ class MotorService:
         self.throttle_gain = float(throttle_gain)
         self.throttle_offset = float(throttle_offset)
         self.last = {"steering": 0.0, "throttle": 0.0}
+        self.command_count = 0
+        self.last_command_time = None
 
     def drive(self, steering, throttle):
         steering_value = self._scale(steering, self.steering_gain, self.steering_offset)
@@ -39,8 +42,11 @@ class MotorService:
         self.car.steering = steering_value
         self.car.throttle = throttle_value
         self.last = {"steering": steering_value, "throttle": throttle_value}
+        self.command_count += 1
+        self.last_command_time = time.time()
         print(
-            "drive steering={:.3f} throttle={:.3f}".format(
+            "drive count={} steering={:.3f} throttle={:.3f}".format(
+                self.command_count,
                 steering_value,
                 throttle_value,
             ),
@@ -62,7 +68,14 @@ service = None
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/health":
-            self._send_json({"ok": True, "last": service.last})
+            self._send_json(
+                {
+                    "ok": True,
+                    "last": service.last,
+                    "command_count": service.command_count,
+                    "last_command_time": service.last_command_time,
+                }
+            )
             return
         if self.path == "/stop":
             self._send_json({"ok": True, "command": service.stop()})
