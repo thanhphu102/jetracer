@@ -90,7 +90,7 @@ avoid:
   duration_sec: 0.50
 
 debug:
-  dry_run: true
+  dry_run: false
   show_log: true
   log_raw_yolo: true
   publish_overlay: true

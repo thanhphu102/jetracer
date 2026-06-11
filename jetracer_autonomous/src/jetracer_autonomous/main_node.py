@@ -78,6 +78,7 @@ class AutonomousDriveNode:
                 self.config.get("steering.turn_right", -0.7),
             )
         )
+        rospy.loginfo("dry_run={}".format(self.config.get("debug.dry_run", True)))
         rospy.loginfo(
             "opencv_cuda_requested={} opencv_cuda_available={}".format(
                 self.config.get("line.use_cuda", False),
