@@ -25,6 +25,7 @@ class LineInfo:
     cross: bool = False
     cross_stable_count: int = 0
     mask_score: float = 0.0
+    bottom_score: float = 0.0
     debug: dict = field(default_factory=dict)
 
 
@@ -53,6 +54,9 @@ class LineDetector:
         roi = mask[y_start:y_end, :]
         found, line_center, line_error = self._find_line_center(roi, image_center)
         mask_score = float(np.count_nonzero(roi)) / float(roi.size) if roi.size else 0.0
+        bottom_score = self._score_bottom_band(roi)
+        if found and not self._bottom_contact_ok(bottom_score):
+            found, line_center, line_error = False, None, None
 
         (
             left_score,
@@ -113,6 +117,7 @@ class LineDetector:
             cross=cross,
             cross_stable_count=self.cross_stable_count,
             mask_score=mask_score,
+            bottom_score=bottom_score,
             debug=debug,
         )
 
@@ -225,6 +230,24 @@ class LineDetector:
         line_center = float(moments["m10"] / moments["m00"])
         line_error = float(line_center - image_center)
         return True, line_center, line_error
+
+    def _score_bottom_band(self, roi):
+        if roi.size == 0:
+            return 0.0
+
+        height = roi.shape[0]
+        fraction = float(self.config.get("line.bottom_band_fraction", 0.20))
+        band_height = max(1, int(height * fraction))
+        bottom = roi[height - band_height : height, :]
+        if bottom.size == 0:
+            return 0.0
+        return float(np.count_nonzero(bottom)) / float(bottom.size)
+
+    def _bottom_contact_ok(self, bottom_score):
+        if not bool(self.config.get("line.require_bottom_contact", True)):
+            return True
+        threshold = float(self.config.get("line.bottom_score_threshold", 0.015))
+        return bottom_score >= threshold
 
     def _score_regions(self, roi, y_start):
         height, width = roi.shape[:2]

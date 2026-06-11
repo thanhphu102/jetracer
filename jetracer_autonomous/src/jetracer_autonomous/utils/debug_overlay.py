@@ -99,9 +99,10 @@ class DebugOverlay:
                 getattr(line_info, "raw_cross", False),
                 getattr(line_info, "cross_stable_count", 0),
             ),
-            "found={} mask={:.3f}".format(
+            "found={} mask={:.3f} bottom={:.3f}".format(
                 getattr(line_info, "found", False),
                 getattr(line_info, "mask_score", 0.0),
+                getattr(line_info, "bottom_score", 0.0),
             ),
             "sign={} light={} avoid={}".format(
                 getattr(perception, "sign", None),

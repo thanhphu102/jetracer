@@ -49,6 +49,9 @@ line:
   threshold_value: 150
   min_pixels: 60
   min_contour_area: 80
+  require_bottom_contact: true
+  bottom_band_fraction: 0.20
+  bottom_score_threshold: 0.015
 
   roi_y_start_fraction: 0.42
   roi_y_end_fraction: 0.95
