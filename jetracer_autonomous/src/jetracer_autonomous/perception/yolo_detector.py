@@ -13,6 +13,46 @@ LANE_CLASSES = ["straight", "curve_left", "curve_right", "avoid_left", "avoid_ri
 SIGN_CLASSES = ["0_Go_straight", "1_Turn_left", "2_Turn_right", "3_Prohibited"]
 LIGHT_CLASSES = ["green", "yellow", "red_stop", "red_slow"]
 
+LABEL_ALIASES = {
+    "go_straight": "0_Go_straight",
+    "go straight": "0_Go_straight",
+    "straight_sign": "0_Go_straight",
+    "0_go_straight": "0_Go_straight",
+    "0_go straight": "0_Go_straight",
+    "turn_left": "1_Turn_left",
+    "turn left": "1_Turn_left",
+    "left": "1_Turn_left",
+    "left_sign": "1_Turn_left",
+    "1_turn_left": "1_Turn_left",
+    "1_turn left": "1_Turn_left",
+    "turn_right": "2_Turn_right",
+    "turn right": "2_Turn_right",
+    "right": "2_Turn_right",
+    "right_sign": "2_Turn_right",
+    "2_turn_right": "2_Turn_right",
+    "2_turn right": "2_Turn_right",
+    "prohibited": "3_Prohibited",
+    "prohibit": "3_Prohibited",
+    "no_entry": "3_Prohibited",
+    "no entry": "3_Prohibited",
+    "stop_sign": "3_Prohibited",
+    "3_prohibited": "3_Prohibited",
+    "red": "red_stop",
+    "red_light": "red_stop",
+    "red stop": "red_stop",
+    "red_stop": "red_stop",
+    "red_slow": "red_slow",
+    "red slow": "red_slow",
+    "yellow": "yellow",
+    "yellow_light": "yellow",
+    "green": "green",
+    "green_light": "green",
+    "avoid_left": "avoid_left",
+    "avoid left": "avoid_left",
+    "avoid_right": "avoid_right",
+    "avoid right": "avoid_right",
+}
+
 
 @dataclass
 class Detection:
@@ -93,7 +133,9 @@ class YOLODetector:
                     label = str(cls_idx)
                 confidence = float(box.conf[0].item())
                 xyxy = tuple(float(v) for v in box.xyxy[0].tolist())
-                detections.append(Detection(label=label, confidence=confidence, bbox=xyxy))
+                detections.append(
+                    Detection(label=normalize_label(label), confidence=confidence, bbox=xyxy)
+                )
 
         return detections
 
@@ -138,7 +180,7 @@ class YOLODetector:
             try:
                 detections.append(
                     Detection(
-                        label=str(item["label"]),
+                        label=normalize_label(str(item["label"])),
                         confidence=float(item["confidence"]),
                         bbox=tuple(float(v) for v in item["bbox"]),
                     )
@@ -152,3 +194,11 @@ class YOLODetector:
             self.logger(message)
         else:
             print(message)
+
+
+def normalize_label(label):
+    if label in SIGN_CLASSES or label in LIGHT_CLASSES or label in LANE_CLASSES:
+        return label
+
+    key = label.strip().lower().replace("-", "_")
+    return LABEL_ALIASES.get(key, label)
