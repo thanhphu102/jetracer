@@ -11,6 +11,12 @@ YOLO_CONF="${YOLO_CONF:-0.6}"
 YOLO_DEVICE="${YOLO_DEVICE:-0}"
 YOLO_IMGSZ="${YOLO_IMGSZ:-640}"
 YOLO_HALF="${YOLO_HALF:-0}"
+CAMERA_WIDTH="${CAMERA_WIDTH:-640}"
+CAMERA_HEIGHT="${CAMERA_HEIGHT:-480}"
+CAMERA_FPS="${CAMERA_FPS:-15}"
+CAMERA_CAPTURE_WIDTH="${CAMERA_CAPTURE_WIDTH:-1280}"
+CAMERA_CAPTURE_HEIGHT="${CAMERA_CAPTURE_HEIGHT:-720}"
+CAMERA_CAPTURE_FPS="${CAMERA_CAPTURE_FPS:-60}"
 MODEL_PATH="${MODEL_PATH:-$REPO_PATH/jetracer_autonomous/models/best.pt}"
 CONFIG_PATH="${CONFIG_PATH:-$REPO_PATH/jetracer_autonomous/config/params.yaml}"
 DOCKER_BIN="${DOCKER_BIN:-sudo docker}"
@@ -75,6 +81,7 @@ echo "[run_stack] repo: ${REPO_PATH}"
 echo "[run_stack] config: ${CONFIG_PATH}"
 echo "[run_stack] model: ${MODEL_PATH}"
 echo "[run_stack] yolo device: ${YOLO_DEVICE}"
+echo "[run_stack] camera: ${CAMERA_WIDTH}x${CAMERA_HEIGHT}@${CAMERA_FPS} capture=${CAMERA_CAPTURE_WIDTH}x${CAMERA_CAPTURE_HEIGHT}@${CAMERA_CAPTURE_FPS}"
 
 if ! rostopic list >/dev/null 2>&1; then
   echo "[run_stack] starting roscore"
@@ -87,7 +94,14 @@ else
 fi
 
 echo "[run_stack] starting CSI camera node"
-rosrun jetracer_autonomous csi_camera_node.py >/tmp/jetracer_csi_camera.log 2>&1 &
+rosrun jetracer_autonomous csi_camera_node.py \
+  _width:="${CAMERA_WIDTH}" \
+  _height:="${CAMERA_HEIGHT}" \
+  _fps:="${CAMERA_FPS}" \
+  _capture_width:="${CAMERA_CAPTURE_WIDTH}" \
+  _capture_height:="${CAMERA_CAPTURE_HEIGHT}" \
+  _capture_fps:="${CAMERA_CAPTURE_FPS}" \
+  >/tmp/jetracer_csi_camera.log 2>&1 &
 CAMERA_PID="$!"
 sleep 2
 if ! kill -0 "${CAMERA_PID}" 2>/dev/null; then
