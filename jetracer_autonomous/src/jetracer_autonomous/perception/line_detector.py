@@ -53,10 +53,18 @@ class LineDetector:
         found, line_center, line_error = self._find_line_center(roi, image_center)
         mask_score = float(np.count_nonzero(roi)) / float(roi.size) if roi.size else 0.0
 
-        left_score, center_score, right_score, split_boxes = self._score_regions(roi, y_start)
+        left_score, center_score, right_score, split_boxes = self._score_intersection_regions(
+            mask,
+            height,
+            width,
+        )
         side_threshold = float(self.config.get("intersection.side_score_threshold", 0.08))
         center_threshold = float(self.config.get("intersection.center_score_threshold", 0.08))
+        max_cross_error = float(self.config.get("intersection.max_line_error_for_cross", 99999))
+        line_centered = found and line_error is not None and abs(line_error) <= max_cross_error
         raw_cross = (
+            line_centered
+            and
             left_score > side_threshold
             and center_score > center_threshold
             and right_score > side_threshold
@@ -222,3 +230,41 @@ class LineDetector:
             (2 * third, y_start, width, y_start + height),
         ]
         return scores[0], scores[1], scores[2], split_boxes
+
+    def _score_intersection_regions(self, mask, image_height, image_width):
+        y_start = int(
+            image_height * float(self.config.get("intersection.band_y_start_fraction", 0.60))
+        )
+        y_end = int(
+            image_height * float(self.config.get("intersection.band_y_end_fraction", 0.82))
+        )
+        y_start = max(0, min(image_height - 1, y_start))
+        y_end = max(y_start + 1, min(image_height, y_end))
+
+        x_margin = int(
+            image_width * float(self.config.get("intersection.side_margin_fraction", 0.08))
+        )
+        x_margin = max(0, min(image_width // 4, x_margin))
+
+        x_left_start = x_margin
+        x_left_end = image_width // 3
+        x_center_start = image_width // 3
+        x_center_end = 2 * image_width // 3
+        x_right_start = 2 * image_width // 3
+        x_right_end = image_width - x_margin
+
+        boxes = [
+            (x_left_start, y_start, x_left_end, y_end),
+            (x_center_start, y_start, x_center_end, y_end),
+            (x_right_start, y_start, x_right_end, y_end),
+        ]
+
+        scores = []
+        for x1, y1, x2, y2 in boxes:
+            region = mask[y1:y2, x1:x2]
+            if region.size == 0:
+                scores.append(0.0)
+            else:
+                scores.append(float(np.count_nonzero(region)) / float(region.size))
+
+        return scores[0], scores[1], scores[2], boxes

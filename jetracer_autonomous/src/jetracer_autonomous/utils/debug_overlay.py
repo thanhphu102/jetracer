@@ -42,7 +42,7 @@ class DebugOverlay:
 
         for box in debug.get("split_boxes", []):
             x1, y1, x2, y2 = box
-            cv2.rectangle(overlay, (x1, y1), (x2, y2), (80, 80, 255), 1)
+            cv2.rectangle(overlay, (x1, y1), (x2, y2), (80, 80, 255), 2)
 
         height = overlay.shape[0]
         image_center = int(getattr(line_info, "image_center", 0) or 0)

@@ -17,7 +17,7 @@ model:
   half: false
 
 sign:
-  pending_timeout_sec: 5.0
+  pending_timeout_sec: 12.0
 
 line:
   use_cuda: true
@@ -34,9 +34,13 @@ line:
   debug_show_roi: true
 
 intersection:
-  side_score_threshold: 0.025
-  center_score_threshold: 0.05
-  cross_stable_frames: 2
+  side_score_threshold: 0.10
+  center_score_threshold: 0.08
+  cross_stable_frames: 4
+  band_y_start_fraction: 0.60
+  band_y_end_fraction: 0.82
+  side_margin_fraction: 0.08
+  max_line_error_for_cross: 120
 
 throttle:
   normal: 0.16
@@ -56,7 +60,7 @@ control:
   max_steering_delta_per_step: 0.10
 
 perception:
-  sign_stable_frames: 2
+  sign_stable_frames: 1
   light_stable_frames: 2
   avoid_stable_frames: 2
 

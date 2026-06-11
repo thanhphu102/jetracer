@@ -38,6 +38,7 @@ class DecisionManager:
         self.config = config
         self.state = FOLLOW_LINE
         self.pending_action = None
+        self.pending_sign = None
         self.sign_pending_start_time = None
         self.lost_line_since = None
         self.recover_start_time = None
@@ -132,6 +133,7 @@ class DecisionManager:
             sign = getattr(perception, "sign", None)
             if sign in SIGN_ACTIONS:
                 self.pending_action = SIGN_ACTIONS[sign]
+                self.pending_sign = sign
                 self.sign_pending_start_time = current_time
                 self._enter(SIGN_PENDING, self._sign_reason(sign))
                 return self.get_state_info()
@@ -143,6 +145,7 @@ class DecisionManager:
         if self.state not in TURN_STATES:
             return
         self.pending_action = None
+        self.pending_sign = None
         self.sign_pending_start_time = None
         self.recover_start_time = current_time
         self.lost_line_since = None
@@ -178,11 +181,14 @@ class DecisionManager:
             and current_time - self.sign_pending_start_time > timeout
         ):
             self.pending_action = None
+            self.pending_sign = None
             self.sign_pending_start_time = None
             self._enter(FOLLOW_LINE, "sign_pending_timeout_cleared")
             return self.get_state_info()
 
-        self.last_reason = "waiting_for_cross"
+        self.last_reason = "waiting_for_cross_pending_{}".format(
+            (self.pending_action or "none").lower()
+        )
         return self.get_state_info()
 
     def _line_lost_too_long(self, line_found, current_time):
