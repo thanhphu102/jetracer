@@ -31,6 +31,11 @@ class LineDetector:
     def __init__(self, config):
         self.config = config
         self.cross_stable_count = 0
+        self.use_cuda = bool(config.get("line.use_cuda", False))
+        self.cuda_available = self._check_cuda_available()
+        self.cuda_kernel = None
+        if self.cuda_available:
+            self.cuda_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
 
     def process(self, frame):
         if cv2 is None or np is None or frame is None:
@@ -87,6 +92,14 @@ class LineDetector:
         )
 
     def _create_mask(self, frame):
+        if self.cuda_available:
+            try:
+                return self._create_mask_cuda(frame)
+            except Exception:
+                self.cuda_available = False
+        return self._create_mask_cpu(frame)
+
+    def _create_mask_cpu(self, frame):
         if len(frame.shape) == 3:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         else:
@@ -124,6 +137,45 @@ class LineDetector:
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
         return mask
+
+    def _create_mask_cuda(self, frame):
+        mode = self.config.get("line.threshold_mode", "white_on_dark")
+        if mode in ("auto", "adaptive_white_on_dark", "adaptive_black_on_light"):
+            return self._create_mask_cpu(frame)
+
+        threshold_value = int(self.config.get("line.threshold_value", 160))
+        gpu_frame = cv2.cuda_GpuMat()
+        gpu_frame.upload(frame)
+
+        if len(frame.shape) == 3:
+            gpu_gray = cv2.cuda.cvtColor(gpu_frame, cv2.COLOR_BGR2GRAY)
+        else:
+            gpu_gray = gpu_frame
+
+        threshold_type = cv2.THRESH_BINARY_INV if mode == "black_on_light" else cv2.THRESH_BINARY
+        _, gpu_mask = cv2.cuda.threshold(gpu_gray, threshold_value, 255, threshold_type)
+
+        morph_open = cv2.cuda.createMorphologyFilter(
+            cv2.MORPH_OPEN,
+            cv2.CV_8UC1,
+            self.cuda_kernel,
+        )
+        morph_close = cv2.cuda.createMorphologyFilter(
+            cv2.MORPH_CLOSE,
+            cv2.CV_8UC1,
+            self.cuda_kernel,
+        )
+        gpu_mask = morph_open.apply(gpu_mask)
+        gpu_mask = morph_close.apply(gpu_mask)
+        return gpu_mask.download()
+
+    def _check_cuda_available(self):
+        if not self.use_cuda or cv2 is None:
+            return False
+        try:
+            return hasattr(cv2, "cuda") and cv2.cuda.getCudaEnabledDeviceCount() > 0
+        except Exception:
+            return False
 
     def _find_line_center(self, roi, image_center):
         min_pixels = int(self.config.get("line.min_pixels", 30))

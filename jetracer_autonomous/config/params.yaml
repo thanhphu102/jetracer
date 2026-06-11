@@ -7,8 +7,8 @@ ros:
 model:
   backend: "http"   # local or http
   path: "models/best.pt"
-  conf_threshold: 0.60
-  inference_every_n_frames: 3
+  conf_threshold: 0.35
+  inference_every_n_frames: 2
   http_url: "http://127.0.0.1:8765/detect"
   http_timeout_sec: 1.0
   jpeg_quality: 80
@@ -20,22 +20,23 @@ sign:
   pending_timeout_sec: 5.0
 
 line:
+  use_cuda: true
   threshold_mode: "white_on_dark"
   kp: 0.004
   max_steering: 0.60
   lost_timeout_sec: 1.50
-  threshold_value: 180
-  min_pixels: 80
-  min_contour_area: 120
+  threshold_value: 150
+  min_pixels: 60
+  min_contour_area: 80
 
-  roi_y_start_fraction: 0.50
+  roi_y_start_fraction: 0.42
   roi_y_end_fraction: 0.95
   debug_show_roi: true
 
 intersection:
-  side_score_threshold: 0.08
-  center_score_threshold: 0.08
-  cross_stable_frames: 3
+  side_score_threshold: 0.025
+  center_score_threshold: 0.05
+  cross_stable_frames: 2
 
 throttle:
   normal: 0.16
@@ -55,8 +56,8 @@ control:
   max_steering_delta_per_step: 0.10
 
 perception:
-  sign_stable_frames: 4
-  light_stable_frames: 3
+  sign_stable_frames: 2
+  light_stable_frames: 2
   avoid_stable_frames: 2
 
 turn:
@@ -75,6 +76,7 @@ debug:
   show_log: true
   publish_overlay: true
   publish_line_mask: true
+  publish_debug_every_n_frames: 3
 
   save_overlay_frames: false
   overlay_save_interval: 30

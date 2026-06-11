@@ -77,11 +77,18 @@ class AutonomousDriveNode:
                 self.config.get("steering.turn_right", -0.7),
             )
         )
+        rospy.loginfo(
+            "opencv_cuda_requested={} opencv_cuda_available={}".format(
+                self.config.get("line.use_cuda", False),
+                getattr(self.line_detector, "cuda_available", False),
+            )
+        )
 
     def run(self):
         loop_rate = float(self.config.get("ros.loop_rate_hz", 15))
         inference_every = max(1, int(self.config.get("model.inference_every_n_frames", 3)))
         dry_run = bool(self.config.get("debug.dry_run", True))
+        debug_every = max(1, int(self.config.get("debug.publish_debug_every_n_frames", 1)))
         rate = rospy.Rate(loop_rate)
         perception = Perception()
 
@@ -122,8 +129,9 @@ class AutonomousDriveNode:
                 self.vehicle.publish(command)
 
             self.debug_logger.log(state_info, line_info, perception, command, yolo_ran)
-            self._publish_overlay(frame, state_info, line_info, perception, command, yolo_ran)
-            self._publish_line_mask(line_info)
+            if self.frame_counter % debug_every == 0:
+                self._publish_overlay(frame, state_info, line_info, perception, command, yolo_ran)
+                self._publish_line_mask(line_info)
 
             self.frame_counter += 1
             rate.sleep()
