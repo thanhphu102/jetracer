@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="turn_direction" default="right"/>
+  <arg name="lane_cmd_topic" default="/lane/cmd"/>
+  <arg name="lane_status_topic" default="/lane/status"/>
+  <arg name="intersection_status_topic" default="/intersection/status"/>
+  <arg name="imu_topic" default="/imu"/>
+  <arg name="cmd_out_topic" default="/cmd_vel"/>
+
+  <node pkg="jetracer" type="turn_controller_node.py" name="turn_controller" output="screen">
+    <param name="default_turn_direction" value="$(arg turn_direction)"/>
+    <param name="lane_cmd_topic" value="$(arg lane_cmd_topic)"/>
+    <param name="lane_status_topic" value="$(arg lane_status_topic)"/>
+    <param name="intersection_status_topic" value="$(arg intersection_status_topic)"/>
+    <param name="imu_topic" value="$(arg imu_topic)"/>
+    <param name="cmd_out_topic" value="$(arg cmd_out_topic)"/>
+  </node>
+</launch>
